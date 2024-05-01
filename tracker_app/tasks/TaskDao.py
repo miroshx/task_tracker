@@ -4,9 +4,7 @@ from sqlalchemy.orm import selectinload
 from tracker_app.database import async_session_maker
 from tracker_app.models import Task, User, UserRole, TaskStatus, TaskChangeType, TaskHistory
 from tracker_app.tasks.schemas import STask, STaskCreate, STaskCreateChild
-from tracker_app.tasks.utils import convert_filter_type
 from tracker_app.users.dao import UserDao
-import logging
 
 
 class TaskDao:
@@ -54,25 +52,10 @@ class TaskDao:
         return True
 
     @staticmethod
-    async def is_valid_status(task: STask):
-        """
-            Checks if the status of the task is valid.
+    async def is_valid_status(task: Task, new_status: TaskStatus, next_status: TaskStatus):
 
-            Args:
-                task (STask): The task object.
-
-            Returns:
-                bool: True if the status is valid, False otherwise.
-        """
-        if status in ['to_do', 'wontfix']:
-            return True
-        status_index = 0
-        statuses = [r.value for r in TaskStatus]
-        for i in range(len(statuses) - 1):
-            if statuses[i] == task.status:
-                status_index = i
-                break
-        if status_index < len(statuses) - 2:
+        if new_status in [TaskStatus.wontfix, TaskStatus.to_do] or new_status == next_status or \
+                new_status == task.status:
             return True
         return False
 
@@ -166,19 +149,17 @@ class TaskDao:
             await session.commit()
 
     @staticmethod
-    async def get_all_tasks(filter_type: str):
+    async def get_all_tasks(filter_method: str):
         """
             Retrieves all tasks based on the given filter type.
 
             Args:
-                filter_type (str): Type of filter to apply.
+                filter_method (str): Type of filter to apply.
 
             Returns:
                 List[Task]: List of tasks.
         """
         async with async_session_maker() as session:
-            filter_method = convert_filter_type(filter_type)
-
             query = select(Task).options(selectinload(Task.children)).order_by(
                 filter_method)
             result = await session.execute(query)
@@ -239,8 +220,10 @@ class TaskDao:
                 None
         """
         async with async_session_maker() as session:
-            query = delete(Task).where(Task.id == id)
-            await session.execute(query)
+            query_task = delete(Task).where(Task.id == id)
+            query_history = delete(TaskHistory).where(TaskHistory.task_id == id)
+            await session.execute(query_history)
+            await session.execute(query_task)
             await session.commit()
 
     @staticmethod
