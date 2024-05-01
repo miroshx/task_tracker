@@ -1,11 +1,13 @@
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, status, Response
+from fastapi_cache.decorator import cache
+from sqlalchemy import asc, column
 
-from tracker_app.database import async_session_maker
-from tracker_app.models import User, UserRole, TaskChangeType, TaskStatus, Task, TaskHistory
+from tracker_app.models import User, UserRole, TaskChangeType, TaskStatus, Task, TaskHistory, TaskType, TaskPriority
 from tracker_app.tasks.TaskDao import TaskDao
 from tracker_app.tasks.schemas import STask, STaskCreate, STaskCreateChild
+from tracker_app.tasks.utils import convert_filter_type, user_type_priority_validator
 from tracker_app.users.dao import UserDao
 from tracker_app.users.dependencies import get_current_user
 
@@ -30,7 +32,9 @@ async def create_task(task: STaskCreate, cur_user: User = Depends(get_current_us
         Returns:
             None
         """
-    if not await TaskDao.is_valid_assignee('to_do', task.assignee_id):
+    user_type_priority_validator(cur_user, task.type, task.priority)
+    assignee = await UserDao.get_by_id(task.assignee_id)
+    if not await TaskDao.is_valid_assignee(TaskStatus.to_do, assignee):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
     await TaskDao.create_task(task, cur_user)
     data = task.dict()
@@ -52,9 +56,9 @@ async def create_child_task(task: STaskCreateChild, cur_user: User = Depends(get
         Returns:
             None
         """
-    if not cur_user:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
-    is_valid_assignee = await TaskDao.is_valid_assignee('to_do', task.assignee_id)
+    user_type_priority_validator(cur_user, task.type, task.priority)
+    assignee = await UserDao.get_by_id(task.assignee_id)
+    is_valid_assignee = await TaskDao.is_valid_assignee(TaskStatus.to_do, assignee)
     is_valid_parent = await TaskDao.is_valid_parent(task.parent_id)
     if not is_valid_assignee or not is_valid_parent:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
@@ -75,11 +79,15 @@ async def get_task(t_id: int):
        Returns:
            Task: Task data.
        """
-    return await TaskDao.get_by_id(t_id=t_id)
+    result = await TaskDao.get_by_id(t_id=t_id)
+    if not result:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+    return result
 
 
 @router.get('/get_tasks')
-async def get_tasks(filter_type: str):
+@cache(expire=60)
+async def get_tasks(filter_type: str = None):
     """
         Get all tasks based on a filter type.
 
@@ -89,7 +97,10 @@ async def get_tasks(filter_type: str):
         Returns:
             List[Task]: List of tasks.
         """
-    return await TaskDao.get_all_tasks(filter_type)
+    filter_method = convert_filter_type(filter_type)
+    if filter_method is None:
+        filter_method = asc(column('id'))
+    return await TaskDao.get_all_tasks(filter_method)
 
 
 @router.put('/update_task/{id}')
@@ -108,15 +119,17 @@ async def update_task(task: STask, t_id: int, cur_user: User = Depends(get_curre
        Returns:
            None
        """
-    is_valid_status = False
+    user_type_priority_validator(cur_user, task.type, task.priority)
     cur_task = await TaskDao.get_by_id(t_id)
+
     t_next_status = TaskDao.get_next_status(cur_task)
     if task.status not in TaskStatus.__members__:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
-    if TaskStatus[task.status] in [TaskStatus.wontfix, TaskStatus.to_do] or TaskStatus[task.status] == t_next_status or \
-            TaskStatus[task.status] == cur_task.status:
-        is_valid_status = True
-    is_valid_assignee = await TaskDao.is_valid_assignee(TaskStatus[task.status], task.assignee_id)
+
+    is_valid_status = await TaskDao.is_valid_status(cur_task, TaskStatus[task.status], t_next_status)
+    assignee = await UserDao.get_by_id(task.assignee_id)
+    is_valid_assignee = await TaskDao.is_valid_assignee(TaskStatus[task.status], assignee)
+
     if not is_valid_status or not is_valid_assignee:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
     await TaskDao.update_task(task, t_id)
@@ -141,6 +154,7 @@ async def delete_task(t_id: int, cur_user: User = Depends(get_current_user)):
         """
     if cur_user.role != UserRole.manager:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+
     await TaskDao.delete_task(t_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -169,6 +183,7 @@ async def next_status(t_id: int, assignee_id: int = 0):
     assignee = await UserDao.get_by_id(assignee_id)
     if not await TaskDao.is_valid_assignee(t_next_status, assignee):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
+
     await TaskDao.update_status(t_id, t_next_status, assignee_id)
     return Response(status_code=status.HTTP_200_OK)
 

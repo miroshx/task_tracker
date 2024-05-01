@@ -40,7 +40,6 @@ class TaskType(PyEnum):
 class TaskChangeType(PyEnum):
     create = 'create'
     update = 'update'
-    delete = 'delete'
 
 
 class TaskHistory(Base):

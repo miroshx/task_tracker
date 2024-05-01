@@ -29,7 +29,7 @@ async def get_current_user(token: str = Depends(get_token)):
     if not user_id:
         raise HTTPException(status_code=401)
 
-    user = await UserDao.get_by_id(id=int(user_id))
+    user = await UserDao.get_by_id(int(user_id))
     if not user:
         raise HTTPException(status_code=401)
     return user

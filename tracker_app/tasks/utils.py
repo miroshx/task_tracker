@@ -1,6 +1,8 @@
 from fastapi import HTTPException, status
 from sqlalchemy import asc, desc, column
 
+from tracker_app.models import User, TaskType, TaskPriority
+
 
 def convert_filter_type(filter_type: str):
     """
@@ -31,6 +33,12 @@ def convert_filter_type(filter_type: str):
     }
 
     result = filter_mapping.get(filter_type)
-    if result is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
     return result
+
+
+def user_type_priority_validator(user: User, t_type: str, t_priority: str):
+    if not user:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+    if t_type not in TaskType.__members__ or t_priority not in TaskPriority.__members__:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
+    return True

@@ -8,7 +8,7 @@ from sqlalchemy import pool
 from alembic import context
 from tracker_app.config import settings
 from tracker_app.database import Base
-from tracker_app.models import Task
+from tracker_app.models import Task, User, TaskHistory
 
 # Импортируйте модули из правильных мест
 
