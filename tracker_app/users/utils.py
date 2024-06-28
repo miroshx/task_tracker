@@ -26,6 +26,6 @@ def create_access_token(data: dict) -> str:
 
 async def authenticate_user(username: str, password: str):
     user = await UserDao.get_by_username(username)
-    if not user and not verify_password(password, user.hashed_password):
+    if not user or not verify_password(password, user.password):
         return None
     return user

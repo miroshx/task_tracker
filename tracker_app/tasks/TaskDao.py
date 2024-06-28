@@ -3,7 +3,7 @@ from sqlalchemy import insert, select, update, delete, text, or_, and_
 from sqlalchemy.orm import selectinload
 from tracker_app.database import async_session_maker
 from tracker_app.models import Task, User, UserRole, TaskStatus, TaskChangeType, TaskHistory
-from tracker_app.tasks.schemas import STask, STaskCreate, STaskCreateChild
+from tracker_app.tasks.schemas import STaskUpdate, STaskCreate, STaskCreateChild
 from tracker_app.users.dao import UserDao
 
 
@@ -114,7 +114,7 @@ class TaskDao:
         async with async_session_maker() as session:
             query = insert(Task).values(number=task.number,
                                         type=task.type,
-                                        priority=task.priority,
+                                        priority=task.priority if task.priority is not None else None,
                                         status=TaskStatus.to_do,
                                         title=task.title,
                                         description=task.description,
@@ -182,12 +182,12 @@ class TaskDao:
             return result.scalar_one_or_none()
 
     @staticmethod
-    async def update_task(task: STask, id: int):
+    async def update_task(task: STaskUpdate, id: int):
         """
             Updates a task with the provided data.
 
             Args:
-                task (STask): Updated task data.
+                task (STaskUpdate): Updated task data.
                 id (int): ID of the task to update.
 
             Returns:
@@ -199,7 +199,7 @@ class TaskDao:
                 .where(Task.id == id)
                 .values(number=task.number,
                         type=task.type,
-                        priority=task.priority,
+                        priority=task.priority if task.priority is not None else Task.priority,
                         status=task.status,
                         title=task.title,
                         description=task.description,

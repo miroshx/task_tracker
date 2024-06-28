@@ -58,8 +58,7 @@ class Task(Base):
     id = Column(Integer, primary_key=True, index=True)
     number = Column(Integer, unique=True, index=True)
     type = Column(Enum(TaskType, name='task_type', create_type=False), default=TaskType.task, nullable=False)
-    priority = Column(Enum(TaskPriority, name='task_priority', create_type=False), default=TaskPriority.low,
-                      nullable=False)
+    priority = Column(Enum(TaskPriority, name='task_priority', create_type=False), default=TaskPriority.low)
     status = Column(Enum(TaskStatus, name='task_status', create_type=False), default=TaskStatus.to_do, nullable=False)
     title = Column(String, index=True)
     description = Column(String, nullable=True)

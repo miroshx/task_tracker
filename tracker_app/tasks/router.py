@@ -6,8 +6,8 @@ from sqlalchemy import asc, column
 
 from tracker_app.models import User, UserRole, TaskChangeType, TaskStatus, Task, TaskHistory, TaskType, TaskPriority
 from tracker_app.tasks.TaskDao import TaskDao
-from tracker_app.tasks.schemas import STask, STaskCreate, STaskCreateChild
-from tracker_app.tasks.utils import convert_filter_type, user_type_priority_validator
+from tracker_app.tasks.schemas import STaskUpdate, STaskCreate, STaskCreateChild
+from tracker_app.tasks.utils import convert_filter_type
 from tracker_app.users.dao import UserDao
 from tracker_app.users.dependencies import get_current_user
 
@@ -32,7 +32,6 @@ async def create_task(task: STaskCreate, cur_user: User = Depends(get_current_us
         Returns:
             None
         """
-    user_type_priority_validator(cur_user, task.type, task.priority)
     assignee = await UserDao.get_by_id(task.assignee_id)
     if not await TaskDao.is_valid_assignee(TaskStatus.to_do, assignee):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
@@ -56,7 +55,6 @@ async def create_child_task(task: STaskCreateChild, cur_user: User = Depends(get
         Returns:
             None
         """
-    user_type_priority_validator(cur_user, task.type, task.priority)
     assignee = await UserDao.get_by_id(task.assignee_id)
     is_valid_assignee = await TaskDao.is_valid_assignee(TaskStatus.to_do, assignee)
     is_valid_parent = await TaskDao.is_valid_parent(task.parent_id)
@@ -103,13 +101,13 @@ async def get_tasks(filter_type: str = None):
     return await TaskDao.get_all_tasks(filter_method)
 
 
-@router.put('/update_task/{id}')
-async def update_task(task: STask, t_id: int, cur_user: User = Depends(get_current_user)):
+@router.put('/update_task/{t_id}')
+async def update_task(task: STaskUpdate, t_id: int, cur_user: User = Depends(get_current_user)):
     """
        Update a task by its ID.
 
        Args:
-           task (STask): Updated task data.
+           task (STaskUpdate): Updated task data.
            t_id (int): Task ID.
            cur_user (User, optional): Current user. Defaults to Depends(get_current_user).
 
@@ -119,7 +117,6 @@ async def update_task(task: STask, t_id: int, cur_user: User = Depends(get_curre
        Returns:
            None
        """
-    user_type_priority_validator(cur_user, task.type, task.priority)
     cur_task = await TaskDao.get_by_id(t_id)
 
     t_next_status = TaskDao.get_next_status(cur_task)

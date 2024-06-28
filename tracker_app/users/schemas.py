@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Literal
 
 from pydantic import BaseModel
 
@@ -19,3 +19,7 @@ class SUserChangePassword(BaseModel):
 
     class Config:
         orm_mode = True
+
+
+class SUserChangeRole(BaseModel):
+    role: Literal['manager', 'team_lead', 'developer', 'test_engineer']

@@ -1,17 +1,13 @@
-from urllib import request
-
 from fastapi import APIRouter, HTTPException, status, Response, Depends, Body
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from jose import jwt
 
 from tracker_app.database import async_session_maker
 from tracker_app.models import User, UserRole
 from tracker_app.users.dao import UserDao
 from tracker_app.users.dependencies import get_current_user
-from tracker_app.users.schemas import SUser, SUserChangePassword
-from sqlalchemy import select, insert, text
+from tracker_app.users.schemas import SUser, SUserChangePassword, SUserChangeRole
+from sqlalchemy import insert
 
-from tracker_app.users.utils import get_hashed_password, verify_password, authenticate_user, create_access_token
+from tracker_app.users.utils import get_hashed_password, authenticate_user, create_access_token, verify_password
 
 router = APIRouter(
     prefix="/users",
@@ -46,41 +42,35 @@ async def logout(response: Response):
     response.delete_cookie('access_token')
 
 
-@router.post('/change_role/{id}')
-async def change_role(id: str, role: str = Body(...), cur_user: User = Depends(get_current_user)):
+@router.post('/change_role/{u_id}')
+async def change_role(u_id: int, role: SUserChangeRole, cur_user: User = Depends(get_current_user)):
     if cur_user.role != UserRole.manager:
         raise HTTPException(status.HTTP_403_FORBIDDEN)
 
-    change_user = await UserDao.get_by_id(id)
-    if change_user:
-        if role not in [r.value for r in UserRole]:
-            raise HTTPException(status.HTTP_400_BAD_REQUEST)
-
-        change_user.role = UserRole(role)
-        await UserDao.update_user_role(change_user)
-        return Response(status_code=status.HTTP_200_OK)
-    else:
+    change_user = await UserDao.get_by_id(u_id)
+    if not change_user:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
+    await UserDao.update_user_role(role.role, u_id)
+    return Response(status_code=status.HTTP_200_OK)
 
 
-@router.post('/change_username/{id}')
-async def change_role(id: str, new_username: str, cur_user: User = Depends(get_current_user)):
+@router.post('/change_username/{u_id}')
+async def change_username(u_id: int, new_username: str, cur_user: User = Depends(get_current_user)):
     if cur_user.role != UserRole.manager:
         raise HTTPException(status.HTTP_403_FORBIDDEN)
 
-    change_user = await UserDao.get_by_id(int(id))
-    if change_user:
-        change_user.username = new_username
-        await UserDao.update_user_name(change_user)
-        return Response(status_code=status.HTTP_200_OK)
-    else:
+    change_user = await UserDao.get_by_id(u_id)
+    user_with_new_username = await UserDao.get_by_username(new_username)
+    if not change_user or user_with_new_username:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
+    await UserDao.update_user_name(u_id, new_username)
+    return Response(status_code=status.HTTP_200_OK)
 
 
 @router.post('/change_password')
 async def change_password(response: Response, password_data: SUserChangePassword,
                           cur_user: User = Depends(get_current_user)):
-    if not cur_user or not get_hashed_password(password_data.password) != cur_user.password:
+    if not cur_user or not verify_password(password_data.password, cur_user.password):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
     new_password = get_hashed_password(password_data.new_password)
     await UserDao.update_user_password(response, new_password, cur_user)

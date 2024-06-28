@@ -17,27 +17,27 @@ class UserDao(BaseDao):
             return result.scalar_one_or_none()
 
     @staticmethod
-    async def update_user_role(user: User):
+    async def update_user_role(role: str, user_id: int):
         async with async_session_maker() as session:
             async with session.begin():
                 # Обновляем роль пользователя в базе данных
-                stmt = (
+                query = (
                     update(User)
-                    .where(User.id == user.id)
-                    .values(role=user.role)
+                    .where(User.id == user_id)
+                    .values(role=role)
                 )
-                await session.execute(stmt)
+                await session.execute(query)
                 await session.commit()
 
     @staticmethod
-    async def update_user_name(user: User):
+    async def update_user_name(user_id: int, username: str):
         async with async_session_maker() as session:
             async with session.begin():
                 # Обновляем роль пользователя в базе данных
                 stmt = (
                     update(User)
-                    .where(User.id == user.id)
-                    .values(username=user.username)
+                    .where(User.id == user_id)
+                    .values(username=username)
                 )
                 await session.execute(stmt)
                 await session.commit()
