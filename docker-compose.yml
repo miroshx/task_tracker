@@ -1,0 +1,29 @@
+version: '3'
+services:
+  db:
+    image: postgres
+    environment:
+      POSTGRES_DB: task_tracker
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: task_tracker
+      DB_USER: postgres
+      DB_PASS: postgres
+      MODE: DEV
+      TEST_DB_HOST: db
+      TEST_DB_PORT: 5432
+      TEST_DB_NAME: test_task_tracker
+      TEST_DB_USER: postgres
+      TEST_DB_PASS: postgres
